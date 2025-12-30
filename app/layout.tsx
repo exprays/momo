@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Love Story - An Immersive Experience",
-  description: "A beautiful love story told through smooth scrolling",
+  title: "Noob ♥",
+  description: "Kya pata kal ho na ho ...",
 };
 
 export default function RootLayout({
