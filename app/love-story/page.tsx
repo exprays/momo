@@ -1,11 +1,11 @@
 /* eslint-disable react-hooks/purity */
 "use client";
 
-import { useEffect, useRef } from "react";
+import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
 import SplitText from "@/components/interface/split-text";
 import BlurText from "@/components/interface/blur-text";
 import CurvedLoop from "@/components/interface/curved-text";
-import VariableProximity from "@/components/interface/variable-text";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
@@ -14,9 +14,148 @@ gsap.registerPlugin(ScrollTrigger);
 export default function LoveStory() {
   const heroRef = useRef<HTMLDivElement>(null);
   const heartRef = useRef<HTMLDivElement>(null);
-  const interactiveSectionRef = useRef<HTMLDivElement>(null);
+  const memoryCardRefs = useRef<Array<HTMLDivElement | null>>([]);
+
+  const mailWrapRef = useRef<HTMLDivElement>(null);
+  const mailCoverRef = useRef<HTMLDivElement>(null);
+  const mailPaperRef = useRef<HTMLDivElement>(null);
+  const mailTlRef = useRef<gsap.core.Timeline | null>(null);
+  const mailOpenRef = useRef(false);
+
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const songTimeoutRef = useRef<number | null>(null);
+  const activeNodesRef = useRef<
+    Array<{ osc: OscillatorNode; gain: GainNode; stopAt: number }>
+  >([]);
+
+  const stopSong = (updateState: boolean = true) => {
+    if (songTimeoutRef.current != null) {
+      window.clearTimeout(songTimeoutRef.current);
+      songTimeoutRef.current = null;
+    }
+    activeNodesRef.current.forEach(({ osc, gain }) => {
+      try {
+        osc.stop();
+      } catch {}
+      try {
+        osc.disconnect();
+      } catch {}
+      try {
+        gain.disconnect();
+      } catch {}
+    });
+    activeNodesRef.current = [];
+    if (updateState) setPlayingId(null);
+  };
+
+  const ensureAudioContext = async () => {
+    if (!audioCtxRef.current) {
+      const Ctx = window.AudioContext;
+      audioCtxRef.current = new Ctx();
+    }
+    if (audioCtxRef.current.state === "suspended") {
+      await audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  };
+
+  type Note = { freq: number; beats: number };
+  type Song = { id: string; title: string; bpm: number; notes: Note[] };
+
+  const songs: Song[] = [
+    {
+      id: "tape-1",
+      title: "Side A — First Glance",
+      bpm: 96,
+      notes: [
+        { freq: 440, beats: 1 },
+        { freq: 523.25, beats: 1 },
+        { freq: 659.25, beats: 2 },
+        { freq: 587.33, beats: 1 },
+        { freq: 523.25, beats: 1 },
+        { freq: 440, beats: 2 },
+      ],
+    },
+    {
+      id: "tape-2",
+      title: "Side A — Late Night Talks",
+      bpm: 84,
+      notes: [
+        { freq: 392, beats: 2 },
+        { freq: 440, beats: 1 },
+        { freq: 493.88, beats: 1 },
+        { freq: 523.25, beats: 2 },
+        { freq: 493.88, beats: 1 },
+        { freq: 440, beats: 1 },
+        { freq: 392, beats: 2 },
+      ],
+    },
+    {
+      id: "tape-3",
+      title: "Side B — Forever And Always",
+      bpm: 104,
+      notes: [
+        { freq: 329.63, beats: 1 },
+        { freq: 392, beats: 1 },
+        { freq: 440, beats: 1 },
+        { freq: 523.25, beats: 1 },
+        { freq: 440, beats: 2 },
+        { freq: 392, beats: 1 },
+        { freq: 329.63, beats: 2 },
+      ],
+    },
+  ];
+
+  const playSong = async (song: Song) => {
+    // Stop any current song first
+    stopSong();
+    setPlayingId(song.id);
+
+    const ctx = await ensureAudioContext();
+    const beat = 60 / song.bpm;
+    let t = ctx.currentTime + 0.06;
+
+    song.notes.forEach((note) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(note.freq, t);
+
+      const duration = note.beats * beat;
+      const attack = 0.01;
+      const release = 0.03;
+      const peak = 0.12;
+
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(peak, t + attack);
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        Math.max(t + duration - release, t + attack + 0.01)
+      );
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t);
+      osc.stop(t + duration);
+
+      activeNodesRef.current.push({ osc, gain, stopAt: t + duration });
+      t += duration;
+    });
+
+    const totalMs = Math.max(0, (t - (ctx.currentTime + 0.06)) * 1000);
+    songTimeoutRef.current = window.setTimeout(() => {
+      // If another song started, don't clobber state
+      setPlayingId((current) => (current === song.id ? null : current));
+      activeNodesRef.current = [];
+      songTimeoutRef.current = null;
+    }, totalMs + 80);
+  };
 
   useEffect(() => {
+    let mailCtx: gsap.Context | undefined;
     // Parallax effect for hero section
     if (heroRef.current) {
       gsap.to(heroRef.current, {
@@ -44,7 +183,97 @@ export default function LoveStory() {
         rotation: 360,
       });
     }
+
+    // Reveal memory cards on scroll
+    memoryCardRefs.current.forEach((card) => {
+      if (!card) return;
+      gsap.fromTo(
+        card,
+        { opacity: 0, y: 24 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.8,
+          ease: "power3.out",
+          scrollTrigger: {
+            trigger: card,
+            start: "top 85%",
+            toggleActions: "play none none reverse",
+          },
+        }
+      );
+    });
+
+    // Mail open/close timeline
+    if (mailWrapRef.current && mailCoverRef.current && mailPaperRef.current) {
+      mailCtx = gsap.context(() => {
+        gsap.set(mailWrapRef.current!, {
+          perspective: 1000,
+        });
+
+        gsap.set(mailCoverRef.current!, {
+          transformOrigin: "50% 90%",
+          transformStyle: "preserve-3d",
+        });
+
+        gsap.set(mailPaperRef.current!, {
+          opacity: 0,
+          y: 12,
+          scale: 0.98,
+        });
+
+        mailTlRef.current = gsap
+          .timeline({ paused: true, defaults: { ease: "power3.out" } })
+          // cover fades + flips back slightly
+          .to(mailCoverRef.current!, {
+            duration: 0.55,
+            opacity: 0.18,
+            y: 6,
+            rotationX: 62,
+            rotationZ: -0.8,
+            scale: 0.985,
+          })
+          // paper reveals over the cover (without leaving the envelope bounds)
+          .to(
+            mailPaperRef.current!,
+            {
+              duration: 0.65,
+              opacity: 1,
+              y: 0,
+              scale: 1,
+            },
+            0.05
+          )
+          // slight settle
+          .to(
+            mailPaperRef.current!,
+            { duration: 0.45, scale: 1, ease: "power2.out" },
+            ">-0.25"
+          );
+      }, mailWrapRef);
+    }
+
+    return () => {
+      // Clean up ScrollTriggers we created
+      ScrollTrigger.getAll().forEach((st) => st.kill());
+
+      // Revert GSAP context for mail timeline
+      mailCtx?.revert();
+      mailTlRef.current = null;
+      mailOpenRef.current = false;
+
+      // Stop any audio on unmount
+      stopSong(false);
+    };
   }, []);
+
+  const toggleMail = () => {
+    const tl = mailTlRef.current;
+    if (!tl) return;
+    mailOpenRef.current = !mailOpenRef.current;
+    if (mailOpenRef.current) tl.play();
+    else tl.reverse();
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-pink-50 via-rose-50 to-red-50">
@@ -85,7 +314,7 @@ export default function LoveStory() {
           />
 
           <BlurText
-            text="Two hearts discovered a love that would transcend time and space"
+            text="Jaruri tho nahin na? ki jo na mile usey chod hee diya jaaye ..."
             className="text-base sm:text-lg md:text-xl lg:text-2xl text-rose-700 max-w-3xl mx-auto px-2"
             animateBy="words"
             delay={100}
@@ -122,14 +351,7 @@ export default function LoveStory() {
 
           <div className="space-y-4 sm:space-y-6 md:space-y-8 text-base sm:text-lg md:text-xl text-gray-700 leading-relaxed">
             <BlurText
-              text="In a world filled with billions of souls, two paths crossed on an ordinary Tuesday afternoon. The coffee shop was busy, the air thick with the aroma of fresh espresso and possibility."
-              className="text-center"
-              animateBy="words"
-              delay={50}
-            />
-
-            <BlurText
-              text="Their eyes met across the crowded room. Time seemed to pause. In that singular moment, the universe conspired to bring them together."
+              text="2 September 2023 - I never believed in 'love at first sight' until I saw you.... woh ek khamosh sa andaaz, ek woh khayal, sab kuch yaad he mujhe... still I knew we will not meet again! Bas ek hi baar... uske baad bas mere akele mein baith kara muskurana!!!"
               className="text-center"
               animateBy="words"
               delay={50}
@@ -167,83 +389,21 @@ export default function LoveStory() {
               splitType="chars"
             />
             <SplitText
-              text="Growing Together"
+              text="The void"
               tag="h3"
               className="text-2xl sm:text-3xl md:text-4xl text-rose-500 text-center italic"
               splitType="words"
             />
           </div>
 
-          <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 md:gap-12">
-            <div className="space-y-4 sm:space-y-5 md:space-y-6">
-              <BlurText
-                text="They shared late-night conversations that stretched into dawn"
-                className="text-base sm:text-lg text-gray-700"
-                animateBy="words"
-                delay={80}
-              />
-              <BlurText
-                text="They found comfort in comfortable silences"
-                className="text-base sm:text-lg text-gray-700"
-                animateBy="words"
-                delay={80}
-              />
-              <BlurText
-                text="They built a world where only they existed"
-                className="text-base sm:text-lg text-gray-700"
-                animateBy="words"
-                delay={80}
-              />
-            </div>
-
-            <div className="space-y-4 sm:space-y-5 md:space-y-6">
-              <BlurText
-                text="Every smile became a treasure"
-                className="text-base sm:text-lg text-gray-700"
-                animateBy="words"
-                delay={80}
-              />
-              <BlurText
-                text="Every touch felt like coming home"
-                className="text-base sm:text-lg text-gray-700"
-                animateBy="words"
-                delay={80}
-              />
-              <BlurText
-                text="Every day was a new chapter in their story"
-                className="text-base sm:text-lg text-gray-700"
-                animateBy="words"
-                delay={80}
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Interactive Section */}
-      <section
-        ref={interactiveSectionRef}
-        className="min-h-screen flex items-center justify-center py-12 sm:py-16 md:py-20 px-4"
-      >
-        <div className="max-w-5xl mx-auto text-center">
-          <div style={{ position: "relative" }}>
-            <VariableProximity
-              label="Love grows stronger ♥"
-              className="text-3xl sm:text-4xl md:text-6xl lg:text-8xl font-bold text-rose-500 leading-tight"
-              fromFontVariationSettings="'wght' 100, 'wdth' 75"
-              toFontVariationSettings="'wght' 900, 'wdth' 125"
-              containerRef={interactiveSectionRef}
-              radius={200}
-              falloff="gaussian"
-              style={{ fontFamily: '"Roboto Flex", sans-serif' }}
+          <div className="space-y-4 sm:space-y-5 md:space-y-6 text-center">
+            <BlurText
+              text="We always end up loving those hard who we are not meant to be with - of course!! ek hi baar toh dekha tha, bhul bi toh sakta thaa!! Par kuch batana chahta thaa...mai tumhe thoda aur pyar karna chahtha thaa...tumse tumhe mangna chahta thaa...I felt like I am waiting for something that is never going to come... phir bhi mai tumse milna chahta thaa...bas ek baar aur milna chahta thaa..."
+              className="text-base sm:text-lg text-gray-700"
+              animateBy="words"
+              delay={80}
             />
           </div>
-
-          <BlurText
-            text="Move your cursor to feel the magic"
-            className="text-lg sm:text-xl md:text-2xl text-rose-400 italic mt-4 sm:mt-6 md:mt-8"
-            animateBy="words"
-          />
         </div>
       </section>
 
@@ -258,7 +418,7 @@ export default function LoveStory() {
               splitType="chars"
             />
             <SplitText
-              text="The Promise"
+              text="Beyond..."
               tag="h3"
               className="text-2xl sm:text-3xl md:text-4xl text-rose-500 text-center italic"
               splitType="words"
@@ -267,21 +427,23 @@ export default function LoveStory() {
 
           <div className="space-y-6 sm:space-y-8 md:space-y-12 text-center">
             <BlurText
-              text="They learned that love isn't about finding the perfect person"
+              text="Par kahan se laun itna sabar ki tu baat kare aur mujhe fark bhi na pade..."
               className="text-lg sm:text-xl md:text-2xl text-gray-700"
               animateBy="words"
               delay={100}
             />
 
             <BlurText
-              text="It's about seeing an imperfect person perfectly"
+              text="Barasti baarish, Samandar ki lehre, yeh thandi thandi hawayein, thode kuch ache shayari aur un sab shayariyon ka pehla lafz, sab kuch jaise tere ho chuke the!! And I decided to text you on random! Mo main Id ru :)"
               className="text-lg sm:text-xl md:text-2xl text-gray-700"
               animateBy="words"
               delay={100}
             />
 
             <div className="py-6 sm:py-8 md:py-12">
-              <div className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl text-pink-400 animate-pulse-slow">♥</div>
+              <div className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl text-pink-400 animate-pulse-slow">
+                ♥
+              </div>
             </div>
 
             <BlurText
@@ -301,6 +463,326 @@ export default function LoveStory() {
             curveAmount={300}
             className="text-rose-400/60"
           />
+        </div>
+      </section>
+
+      {/* Memories (cards) */}
+      <section className="min-h-screen flex items-center justify-center py-12 sm:py-16 md:py-20 px-4">
+        <div className="max-w-2xl mx-auto w-full">
+          <div className="mb-12 sm:mb-16 md:mb-20">
+            <SplitText
+              text="Memories"
+              tag="h2"
+              className="text-4xl sm:text-5xl md:text-6xl font-bold text-rose-600 mb-4 sm:mb-6 text-center"
+              splitType="chars"
+            />
+            <SplitText
+              text="Little moments, held forever"
+              tag="h3"
+              className="text-xl sm:text-2xl md:text-3xl text-rose-500 text-center italic"
+              splitType="words"
+            />
+          </div>
+
+          <div className="flex flex-col gap-8 sm:gap-10 md:gap-12">
+            {[
+              {
+                src: "/memories-01.svg",
+                caption: "The first laugh that felt like home",
+              },
+              {
+                src: "/memories-02.svg",
+                caption: "A sunset shared, no words needed",
+              },
+              {
+                src: "/memories-03.svg",
+                caption: "Rainy streets, warm hands",
+              },
+              {
+                src: "/memories-04.svg",
+                caption: "A promise whispered, kept daily",
+              },
+            ].map((m, idx) => (
+              <div
+                key={m.src}
+                ref={(el) => {
+                  memoryCardRefs.current[idx] = el;
+                }}
+                className="opacity-0"
+              >
+                <div className="overflow-hidden rounded-2xl bg-white/70 border border-black/[.08]">
+                  <div className="relative aspect-[16/10] w-full">
+                    <Image
+                      src={m.src}
+                      alt={m.caption}
+                      fill
+                      className="object-cover"
+                      priority={idx === 0}
+                    />
+                  </div>
+
+                  <div className="px-5 py-4 sm:px-6 sm:py-5">
+                    <BlurText
+                      text={m.caption}
+                      className="text-base sm:text-lg text-gray-700 text-center"
+                      animateBy="words"
+                      delay={60}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Mixtapes (cassettes) */}
+      <section className="min-h-screen flex items-center justify-center py-12 sm:py-16 md:py-20 px-4">
+        <div className="max-w-2xl mx-auto w-full">
+          <div className="mb-10 sm:mb-14 md:mb-16">
+            <SplitText
+              text="Mixtapes"
+              tag="h2"
+              className="text-4xl sm:text-5xl md:text-6xl font-bold text-rose-600 mb-4 sm:mb-6 text-center"
+              splitType="chars"
+            />
+            <BlurText
+              text="Tap a cassette to play. Tap again to stop."
+              className="text-base sm:text-lg md:text-xl text-rose-600 text-center"
+              animateBy="words"
+              delay={60}
+            />
+          </div>
+
+          <div className="flex flex-col gap-6 sm:gap-8">
+            {songs.map((song) => {
+              const isPlaying = playingId === song.id;
+              return (
+                <button
+                  key={song.id}
+                  type="button"
+                  onClick={() => {
+                    if (isPlaying) stopSong();
+                    else void playSong(song);
+                  }}
+                  aria-pressed={isPlaying}
+                  className="text-left"
+                >
+                  <div className="rounded-2xl bg-white/70 border border-black/[.08] px-5 py-5 sm:px-6 sm:py-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="text-lg sm:text-xl font-semibold text-rose-700">
+                          {song.title}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {isPlaying ? "Playing…" : "Click to play"}
+                        </div>
+                      </div>
+
+                      <div
+                        className={
+                          isPlaying
+                            ? "text-rose-600 text-sm font-semibold"
+                            : "text-gray-500 text-sm"
+                        }
+                      >
+                        {isPlaying ? "Stop" : "Play"}
+                      </div>
+                    </div>
+
+                    <div className="mt-5">
+                      <div className="relative h-24 sm:h-28 w-full rounded-xl border border-black/[.08] bg-white/60 overflow-hidden">
+                        <div className="absolute left-4 right-4 top-4 h-8 rounded-md border border-black/[.08] bg-rose-100/60" />
+
+                        <div className="absolute left-6 bottom-4 h-11 w-11 rounded-full border border-rose-400 bg-white/80 flex items-center justify-center">
+                          <div
+                            className={
+                              isPlaying
+                                ? "h-3 w-3 rounded-full bg-rose-500 animate-pulse-slow"
+                                : "h-3 w-3 rounded-full bg-rose-300"
+                            }
+                          />
+                        </div>
+                        <div className="absolute right-6 bottom-4 h-11 w-11 rounded-full border border-rose-400 bg-white/80 flex items-center justify-center">
+                          <div
+                            className={
+                              isPlaying
+                                ? "h-3 w-3 rounded-full bg-rose-500 animate-pulse-slow"
+                                : "h-3 w-3 rounded-full bg-rose-300"
+                            }
+                          />
+                        </div>
+
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-6 h-8 w-20 rounded-md border border-black/[.08] bg-white/60" />
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-7 h-1 w-12 rounded bg-rose-300/60" />
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Letter (mail) */}
+      <section className="min-h-screen flex items-center justify-center py-12 sm:py-16 md:py-20 px-4">
+        <div className="max-w-2xl mx-auto w-full">
+          <div className="mb-10 sm:mb-14 md:mb-16">
+            <SplitText
+              text="A Letter"
+              tag="h2"
+              className="text-4xl sm:text-5xl md:text-6xl font-bold text-rose-600 mb-4 sm:mb-6 text-center"
+              splitType="chars"
+            />
+            <BlurText
+              text="There’s something I never want you to forget."
+              className="text-base sm:text-lg md:text-xl text-rose-600 text-center"
+              animateBy="words"
+              delay={60}
+            />
+          </div>
+
+          <div
+            ref={mailWrapRef}
+            className="w-full flex justify-center mt-8 sm:mt-12"
+          >
+            <button
+              type="button"
+              onClick={toggleMail}
+              className="relative w-full max-w-[420px]"
+              aria-label="Open letter"
+            >
+              <div className="relative w-full">
+                {/* Paper */}
+                <div
+                  ref={mailPaperRef}
+                  className="absolute inset-0 z-20 flex items-center justify-center px-5 py-6 opacity-0 mt-10"
+                >
+                  <div className="w-full rounded-2xl bg-white border border-black/[.08] p-5 sm:p-10">
+                    <div className="text-sm sm:text-base text-gray-700 leading-relaxed">
+                      <p className="mb-3">Dear you,</p>
+                      <p className="mb-3">
+                        aisa kyun? kisi ke liye sab darwaein band karke bhi, hum
+                        khidkiyon se jhakna nahi chhodte... shayad isiliye ki
+                        hum umeed karte hain? Par phir bhi na jaan na pehchaan?
+                        agr bol doon phir log kya kahenge? ye otp jaise log aur
+                        LIC jaise baatein... and it was hard for me too!!
+                        family, studies everything!!
+                      </p>
+                      <p className="mb-3">
+                        But Thank you for unknowingly making my days better.
+                        I’ll keep choosing you—softly, loudly, always. And I
+                        talked with my stars about you noob!
+                      </p>
+                      <p className="text-rose-700 font-semibold">
+                        Yours,
+                        <br />
+                        Proper bala
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cover */}
+                <div ref={mailCoverRef} className="relative z-10 w-full">
+                  <Image
+                    src="/mail.png"
+                    alt="Mail envelope"
+                    width={840}
+                    height={600}
+                    className="w-full h-auto select-none"
+                    priority={false}
+                  />
+                </div>
+              </div>
+
+              {/* Nudge (below the image) */}
+              <div className="mt-8 sm:mt-10 text-xs sm:text-sm font-medium text-gray-500 text-center">
+                <span
+                  className="inline-block animate-bounce-slow"
+                  style={{ animationDuration: "5.5s" }}
+                >
+                  Open it
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Video Cards */}
+      <section className="min-h-screen py-12 sm:py-16 md:py-20 px-4">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-10 sm:mb-14 md:mb-16">
+            <SplitText
+              text="Little Moments"
+              tag="h2"
+              className="text-4xl sm:text-5xl md:text-6xl font-bold text-rose-600 mb-4 sm:mb-6 text-center"
+              splitType="chars"
+            />
+            <BlurText
+              text="They loop forever in my head — so I let them loop here too."
+              className="text-base sm:text-lg md:text-xl text-rose-600 text-center"
+              animateBy="words"
+              delay={60}
+            />
+          </div>
+
+          {(
+            [
+              {
+                src: "/videos/hero-1.mp4",
+                title: "A soft beginning",
+                body: "The kind of day that quietly changes everything.",
+              },
+              {
+                src: "/videos/hugs.mp4",
+                title: "The safest place",
+                body: "Where the world goes quiet for a second.",
+              },
+              {
+                src: "/videos/summer.mp4",
+                title: "Sunlight and laughter",
+                body: "Warm days we’ll keep replaying.",
+              },
+              {
+                src: "/videos/happy.mp4",
+                title: "Our tiny rituals",
+                body: "Coffee, whispers, and staying a little longer.",
+              },
+              {
+                src: "/videos/latte.mp4",
+                title: "Somewhere new",
+                body: "Same love — different skies.",
+              },
+            ] as const
+          ).map((card) => (
+            <div key={card.src} className="mb-6 sm:mb-8">
+              <div className="relative overflow-hidden rounded-2xl border border-black/[.08] bg-black">
+                <video
+                  className="block w-full h-auto object-cover"
+                  src={card.src}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+
+                <div className="absolute left-4 right-4 bottom-4 sm:left-6 sm:right-6 sm:bottom-6 text-white">
+                  <div className="text-xl sm:text-2xl font-semibold leading-tight">
+                    {card.title}
+                  </div>
+                  <div className="mt-1 text-sm sm:text-base text-white/90">
+                    {card.body}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
