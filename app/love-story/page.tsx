@@ -597,7 +597,7 @@ export default function LoveStory() {
                       </p>
                       <p className="mb-3">
                         But Thank you for unknowingly making my days better.
-                        I’ll keep choosing you—softly, loudly, always. And I
+                        I’ll keep choosing you, softly, loudly, always. And I
                         talked with my stars about you noob!
                       </p>
                       <p className="text-rose-700 font-semibold">
