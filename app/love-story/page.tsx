@@ -23,139 +23,62 @@ export default function LoveStory() {
   const mailOpenRef = useRef(false);
 
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const songTimeoutRef = useRef<number | null>(null);
-  const activeNodesRef = useRef<
-    Array<{ osc: OscillatorNode; gain: GainNode; stopAt: number }>
-  >([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const stopSong = (updateState: boolean = true) => {
-    if (songTimeoutRef.current != null) {
-      window.clearTimeout(songTimeoutRef.current);
-      songTimeoutRef.current = null;
+  type Track = { id: string; title: string; src: string };
+  const tracks: Track[] = [
+    { id: "dekh-lena", title: "Dekh Lena", src: "/audio/dekhlena.mp3" },
+    { id: "hoor", title: "Hoor", src: "/audio/hoor.mp3" },
+    { id: "pyar-ho", title: "Pyar Ho", src: "/audio/pyarho.mp3" },
+  ];
+
+  const stopTrack = (updateState: boolean = true) => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      try {
+        audio.currentTime = 0;
+      } catch {}
     }
-    activeNodesRef.current.forEach(({ osc, gain }) => {
-      try {
-        osc.stop();
-      } catch {}
-      try {
-        osc.disconnect();
-      } catch {}
-      try {
-        gain.disconnect();
-      } catch {}
-    });
-    activeNodesRef.current = [];
     if (updateState) setPlayingId(null);
   };
 
-  const ensureAudioContext = async () => {
-    if (!audioCtxRef.current) {
-      const Ctx = window.AudioContext;
-      audioCtxRef.current = new Ctx();
+  const playTrack = async (track: Track) => {
+    const audio = audioRef.current ?? new Audio();
+    audioRef.current = audio;
+    audio.preload = "auto";
+    audio.loop = false;
+    audio.muted = false;
+
+    const shouldSwap = !audio.src || !audio.src.endsWith(track.src);
+    const isSame = playingId === track.id && !shouldSwap;
+
+    if (isSame && !audio.paused) {
+      stopTrack();
+      return;
     }
-    if (audioCtxRef.current.state === "suspended") {
-      await audioCtxRef.current.resume();
+
+    // Stop any current track first (prevents overlap)
+    stopTrack(false);
+
+    if (shouldSwap) audio.src = track.src;
+
+    try {
+      await audio.play();
+      setPlayingId(track.id);
+    } catch {
+      setPlayingId(null);
     }
-    return audioCtxRef.current;
-  };
-
-  type Note = { freq: number; beats: number };
-  type Song = { id: string; title: string; bpm: number; notes: Note[] };
-
-  const songs: Song[] = [
-    {
-      id: "tape-1",
-      title: "Side A — First Glance",
-      bpm: 96,
-      notes: [
-        { freq: 440, beats: 1 },
-        { freq: 523.25, beats: 1 },
-        { freq: 659.25, beats: 2 },
-        { freq: 587.33, beats: 1 },
-        { freq: 523.25, beats: 1 },
-        { freq: 440, beats: 2 },
-      ],
-    },
-    {
-      id: "tape-2",
-      title: "Side A — Late Night Talks",
-      bpm: 84,
-      notes: [
-        { freq: 392, beats: 2 },
-        { freq: 440, beats: 1 },
-        { freq: 493.88, beats: 1 },
-        { freq: 523.25, beats: 2 },
-        { freq: 493.88, beats: 1 },
-        { freq: 440, beats: 1 },
-        { freq: 392, beats: 2 },
-      ],
-    },
-    {
-      id: "tape-3",
-      title: "Side B — Forever And Always",
-      bpm: 104,
-      notes: [
-        { freq: 329.63, beats: 1 },
-        { freq: 392, beats: 1 },
-        { freq: 440, beats: 1 },
-        { freq: 523.25, beats: 1 },
-        { freq: 440, beats: 2 },
-        { freq: 392, beats: 1 },
-        { freq: 329.63, beats: 2 },
-      ],
-    },
-  ];
-
-  const playSong = async (song: Song) => {
-    // Stop any current song first
-    stopSong();
-    setPlayingId(song.id);
-
-    const ctx = await ensureAudioContext();
-    const beat = 60 / song.bpm;
-    let t = ctx.currentTime + 0.06;
-
-    song.notes.forEach((note) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(note.freq, t);
-
-      const duration = note.beats * beat;
-      const attack = 0.01;
-      const release = 0.03;
-      const peak = 0.12;
-
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(peak, t + attack);
-      gain.gain.exponentialRampToValueAtTime(
-        0.0001,
-        Math.max(t + duration - release, t + attack + 0.01)
-      );
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(t);
-      osc.stop(t + duration);
-
-      activeNodesRef.current.push({ osc, gain, stopAt: t + duration });
-      t += duration;
-    });
-
-    const totalMs = Math.max(0, (t - (ctx.currentTime + 0.06)) * 1000);
-    songTimeoutRef.current = window.setTimeout(() => {
-      // If another song started, don't clobber state
-      setPlayingId((current) => (current === song.id ? null : current));
-      activeNodesRef.current = [];
-      songTimeoutRef.current = null;
-    }, totalMs + 80);
   };
 
   useEffect(() => {
     let mailCtx: gsap.Context | undefined;
+
+    const audio = audioRef.current ?? new Audio();
+    audioRef.current = audio;
+    const onEnded = () => setPlayingId(null);
+    audio.addEventListener("ended", onEnded);
+
     // Parallax effect for hero section
     if (heroRef.current) {
       gsap.to(heroRef.current, {
@@ -257,13 +180,15 @@ export default function LoveStory() {
       // Clean up ScrollTriggers we created
       ScrollTrigger.getAll().forEach((st) => st.kill());
 
+      audio.removeEventListener("ended", onEnded);
+
       // Revert GSAP context for mail timeline
       mailCtx?.revert();
       mailTlRef.current = null;
       mailOpenRef.current = false;
 
       // Stop any audio on unmount
-      stopSong(false);
+      stopTrack(false);
     };
   }, []);
 
@@ -555,15 +480,15 @@ export default function LoveStory() {
           </div>
 
           <div className="flex flex-col gap-6 sm:gap-8">
-            {songs.map((song) => {
-              const isPlaying = playingId === song.id;
+            {tracks.map((track) => {
+              const isPlaying = playingId === track.id;
               return (
                 <button
-                  key={song.id}
+                  key={track.id}
                   type="button"
                   onClick={() => {
-                    if (isPlaying) stopSong();
-                    else void playSong(song);
+                    if (isPlaying) stopTrack();
+                    else void playTrack(track);
                   }}
                   aria-pressed={isPlaying}
                   className="text-left"
@@ -572,7 +497,7 @@ export default function LoveStory() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="text-lg sm:text-xl font-semibold text-rose-700">
-                          {song.title}
+                          {track.title}
                         </div>
                         <div className="text-sm text-gray-600">
                           {isPlaying ? "Playing…" : "Click to play"}
