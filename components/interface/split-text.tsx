@@ -168,7 +168,8 @@ const SplitText: React.FC<SplitTextProps> = ({
       wordWrap: "break-word",
       willChange: "transform, opacity",
     };
-    const classes = `split-parent overflow-hidden inline-block whitespace-normal ${className}`;
+    const displayClass = tag === "span" ? "inline-block" : "block";
+    const classes = `split-parent overflow-hidden ${displayClass} whitespace-normal ${className}`;
     switch (tag) {
       case "h1":
         return (
@@ -205,6 +206,12 @@ const SplitText: React.FC<SplitTextProps> = ({
           <h6 ref={ref} style={style} className={classes}>
             {text}
           </h6>
+        );
+      case "span":
+        return (
+          <span ref={ref} style={style} className={classes}>
+            {text}
+          </span>
         );
       default:
         return (
