@@ -412,20 +412,20 @@ export default function LoveStory() {
           <div className="flex flex-col gap-8 sm:gap-10 md:gap-12">
             {[
               {
-                src: "/memories-01.svg",
-                caption: "The first laugh that felt like home",
+                src: "/images/love.jpeg",
+                caption: "Helllllloooo cutieeeeee!!",
               },
               {
-                src: "/memories-02.svg",
-                caption: "A sunset shared, no words needed",
+                src: "/images/ignore.jpeg",
+                caption: "Meesages ignore karke thak gaye honge janaab!!",
               },
               {
-                src: "/memories-03.svg",
-                caption: "Rainy streets, warm hands",
+                src: "/images/cute.jpeg",
+                caption: "tumhare woh cute cute answers :)",
               },
               {
-                src: "/memories-04.svg",
-                caption: "A promise whispered, kept daily",
+                src: "/images/tease.jpeg",
+                caption: "Proper bala after every good thing I say!!",
               },
             ].map((m, idx) => (
               <div
@@ -713,52 +713,15 @@ export default function LoveStory() {
 
       {/* Final Message */}
       <section className="min-h-screen flex items-center justify-center py-12 sm:py-16 md:py-20 px-4 bg-gradient-to-b from-transparent to-rose-100">
-        <div className="max-w-3xl mx-auto text-center space-y-6 sm:space-y-8 md:space-y-12">
+        <div className="max-w-3xl mx-auto text-center">
           <SplitText
-            text="The End"
+            text="愛してます"
             tag="h2"
             className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-rose-600"
             splitType="chars"
             from={{ opacity: 0, scale: 2 }}
             to={{ opacity: 1, scale: 1 }}
           />
-
-          <BlurText
-            text="...is just the beginning"
-            className="text-2xl sm:text-3xl text-rose-500 italic"
-            animateBy="words"
-            delay={150}
-          />
-
-          <div className="pt-6 sm:pt-8 md:pt-12">
-            <BlurText
-              text="Every love story is unique. Every moment is precious. Every heartbeat matters."
-              className="text-base sm:text-lg md:text-xl text-gray-600"
-              animateBy="words"
-              delay={80}
-            />
-          </div>
-
-          <div className="flex justify-center gap-2 sm:gap-3 md:gap-4 text-4xl sm:text-5xl md:text-6xl py-6 sm:py-8 md:py-12">
-            <span
-              className="inline-block animate-bounce-slow text-pink-400"
-              style={{ animationDelay: "0s" }}
-            >
-              ♥
-            </span>
-            <span
-              className="inline-block animate-bounce-slow text-rose-400"
-              style={{ animationDelay: "0.2s" }}
-            >
-              ♥
-            </span>
-            <span
-              className="inline-block animate-bounce-slow text-red-400"
-              style={{ animationDelay: "0.4s" }}
-            >
-              ♥
-            </span>
-          </div>
         </div>
       </section>
     </div>
