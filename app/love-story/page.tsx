@@ -276,7 +276,7 @@ export default function LoveStory() {
 
           <div className="space-y-4 sm:space-y-6 md:space-y-8 text-base sm:text-lg md:text-xl text-gray-700 leading-relaxed">
             <BlurText
-              text="2 September 2023 - I never believed in 'love at first sight' until I saw you.... woh ek khamosh sa andaaz, ek woh khayal, sab kuch yaad he mujhe... still I knew we will not meet again! Bas ek hi baar... uske baad bas mere akele mein baith kara muskurana!!!"
+              text="2 January 2024 - I never believed in 'love at first sight' until I saw you.... woh ek khamosh sa andaaz, ek woh khayal, sab kuch yaad he mujhe... still I knew ki kuch na hove is baar! Bas ek hi baar... uske baad bas mere akele mein baith kar muskurana!!! Exams mein fail no ha jaun bas...."
               className="text-center"
               animateBy="words"
               delay={50}
@@ -359,7 +359,7 @@ export default function LoveStory() {
             />
 
             <BlurText
-              text="Barasti baarish, Samandar ki lehre, yeh thandi thandi hawayein, thode kuch ache shayari aur un sab shayariyon ka pehla lafz, sab kuch jaise tere ho chuke the!! And I decided to text you on random! Mo main Id ru :)"
+              text="Barasti baarish, Samandar ki lehre, yeh thandi thandi hawayein, thode kuch ache shayari aur un sab shayariyon ka pehla lafz, sab kuch jaise tere ho chuke the!! And I decided to text you on random! But text kya kiya? Trimurti...wth!!"
               className="text-lg sm:text-xl md:text-2xl text-gray-700"
               animateBy="words"
               delay={100}
@@ -417,15 +417,15 @@ export default function LoveStory() {
               },
               {
                 src: "/images/ignore.jpeg",
-                caption: "Meesages ignore karke thak gaye honge janaab!!",
+                caption: "Ignoring me like a pro :P",
               },
               {
                 src: "/images/cute.jpeg",
-                caption: "tumhare woh cute cute answers :)",
+                caption: "tumhare woh cute cute harkatein!!",
               },
               {
                 src: "/images/tease.jpeg",
-                caption: "Proper bala after every good thing I say!!",
+                caption: "Pagal bana diya re tu ne!!",
               },
             ].map((m, idx) => (
               <div
@@ -603,7 +603,7 @@ export default function LoveStory() {
                       <p className="text-rose-700 font-semibold">
                         Yours,
                         <br />
-                        Proper bala
+                        Me.
                       </p>
                     </div>
                   </div>
